@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Truck, Plus, Package, Calendar, CheckCircle, Clock } from 'lucide-react';
+import { Truck, Plus, Package, Calendar, CheckCircle, Clock, Loader2 } from 'lucide-react';
 
 export default function PurchaseOrders() {
-  const { products, purchaseOrders, addPurchaseOrder, updatePurchaseOrderStatus } = useInventory();
+  const { products, purchaseOrders, addPurchaseOrder, updatePurchaseOrderStatus, loading, error } = useInventory();
   const [formData, setFormData] = useState({
     productId: '',
     quantity: '',
     buyingPrice: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.productId || !formData.quantity || !formData.buyingPrice) {
@@ -18,37 +19,48 @@ export default function PurchaseOrders() {
       return;
     }
 
-    const product = products.find(p => p.id === formData.productId);
+    const product = products.find(p => (p.id || p._id) === formData.productId);
     if (!product) {
       alert('Product not found');
       return;
     }
 
-    const quantity = parseInt(formData.quantity);
-    const buyingPrice = parseFloat(formData.buyingPrice);
+    try {
+      setIsSubmitting(true);
+      const quantity = parseInt(formData.quantity);
+      const buyingPrice = parseFloat(formData.buyingPrice);
 
-    addPurchaseOrder({
-      productId: formData.productId,
-      productName: product.name,
-      quantity,
-      buyingPrice,
-      totalCost: quantity * buyingPrice,
-      status: 'pending',
-      orderDate: new Date().toISOString().split('T')[0]
-    });
+      await addPurchaseOrder({
+        productId: formData.productId,
+        productName: product.name,
+        quantity,
+        buyingPrice,
+        totalCost: quantity * buyingPrice,
+        status: 'pending',
+        orderDate: new Date().toISOString().split('T')[0]
+      });
 
-    setFormData({
-      productId: '',
-      quantity: '',
-      buyingPrice: ''
-    });
+      setFormData({
+        productId: '',
+        quantity: '',
+        buyingPrice: ''
+      });
 
-    alert('Purchase order created successfully!');
+      alert('Purchase order created successfully!');
+    } catch (error) {
+      alert('Failed to create purchase order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleMarkAsDelivered = (orderId: string) => {
-    updatePurchaseOrderStatus(orderId, 'delivered');
-    alert('Order marked as delivered and stock updated!');
+  const handleMarkAsDelivered = async (orderId: string) => {
+    try {
+      await updatePurchaseOrderStatus(orderId, 'delivered');
+      alert('Order marked as delivered and stock updated!');
+    } catch (error) {
+      alert('Failed to mark order as delivered. Please try again.');
+    }
   };
 
   const pendingOrders = purchaseOrders.filter(order => order.status === 'pending');
@@ -64,6 +76,12 @@ export default function PurchaseOrders() {
           </div>
           <p className="mt-2 text-gray-600">Manage product orders and stock deliveries</p>
         </div>
+
+        {error && (
+          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Create Purchase Order Form */}
         <div className="p-8 border-b border-gray-200">
@@ -81,8 +99,8 @@ export default function PurchaseOrders() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 >
                   <option value="">Choose a product...</option>
-                  {products.map(product => (
-                    <option key={product.id} value={product.id}>
+                  {products.map((product) => (
+                    <option key={product.id || product._id} value={product.id || product._id}>
                       {product.name}
                     </option>
                   ))}
@@ -134,11 +152,20 @@ export default function PurchaseOrders() {
 
             <button
               type="submit"
-              disabled={!formData.productId || !formData.quantity || !formData.buyingPrice}
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+              disabled={!formData.productId || !formData.quantity || !formData.buyingPrice || isSubmitting || loading}
+              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
             >
-              <Plus className="h-5 w-5" />
-              <span>Create Purchase Order</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Creating Order...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-5 w-5" />
+                  <span>Create Purchase Order</span>
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -170,7 +197,7 @@ export default function PurchaseOrders() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {pendingOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
+                    <tr key={order.id || order._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.orderDate}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.productName}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -182,7 +209,7 @@ export default function PurchaseOrders() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">${order.totalCost.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <button
-                          onClick={() => handleMarkAsDelivered(order.id)}
+                          onClick={() => handleMarkAsDelivered(order.id || order._id!)}
                           className="bg-green-600 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-green-700 transition-colors flex items-center space-x-1"
                         >
                           <CheckCircle className="h-3 w-3" />
@@ -224,7 +251,7 @@ export default function PurchaseOrders() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {deliveredOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
+                    <tr key={order.id || order._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.orderDate}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{order.deliveryDate}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.productName}</td>

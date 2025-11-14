@@ -1,5 +1,6 @@
 export interface Product {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   initialStock: number;
   deliveredQuantity: number;
@@ -7,6 +8,11 @@ export interface Product {
   buyingPrice: number;
   sellingPrice: number;
   createdAt: string;
+  // Virtual fields from backend
+  remainingQuantity?: number;
+  buyingCost?: number;
+  salesValue?: number;
+  profitLoss?: number;
 }
 
 export interface Order {
@@ -18,17 +24,22 @@ export interface Order {
 }
 
 export interface PurchaseOrder {
-  id: string;
+  id?: string;
+  _id?: string;
   productId: string;
+  productName: string;
   quantity: number;
   buyingPrice: number;
-  supplierName: string;
+  totalCost: number;
   status: 'pending' | 'delivered';
+  orderDate: string;
   deliveryDate?: string;
   createdAt: string;
 }
 
 export interface SalesItem {
+  id?: string;
+  _id?: string;
   productId: string;
   productName: string;
   quantity: number;
@@ -37,18 +48,20 @@ export interface SalesItem {
 }
 
 export interface SalesRecord {
-  id: string;
+  id?: string;
+  _id?: string;
   sellerName: string;
   items: SalesItem[];
   totalSalesAmount: number;
-  dueAmount: number;
+  totalDueAmount: number;
   cashSaleAmount: number;
-  saleDate: string;
+  date: string;
   createdAt: string;
 }
 
 export interface DueEntry {
-  id: string;
+  id?: string;
+  _id?: string;
   sellerName: string;
   shopName: string;
   dueAmount: number;

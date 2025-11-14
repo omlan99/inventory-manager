@@ -1,13 +1,13 @@
 import React from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Users, TrendingUp, Package, DollarSign } from 'lucide-react';
+import { Users, TrendingUp, Package, DollarSign, Loader2 } from 'lucide-react';
 
 interface SellersOverviewProps {
   onNavigateToSeller: (sellerName: string) => void;
 }
 
 export default function SellersOverview({ onNavigateToSeller }: SellersOverviewProps) {
-  const { sellers, salesRecords } = useInventory();
+  const { sellers, salesRecords, loading, error } = useInventory();
 
   const getSellerStats = (sellerName: string) => {
     const sellerRecords = salesRecords.filter(record => record.sellerName === sellerName);
@@ -32,6 +32,12 @@ export default function SellersOverview({ onNavigateToSeller }: SellersOverviewP
           </div>
           <p className="mt-2 text-gray-600">Manage and track all seller performance</p>
         </div>
+
+       {error && (
+         <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+           <p className="text-red-600 text-sm">{error}</p>
+         </div>
+       )}
 
         {/* Summary Cards */}
         <div className="p-8 border-b border-gray-200">
@@ -70,7 +76,13 @@ export default function SellersOverview({ onNavigateToSeller }: SellersOverviewP
 
         {/* Sellers List */}
         <div className="p-8">
-          {sellers.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <Loader2 className="h-16 w-16 animate-spin text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Loading sellers...</h3>
+            <p className="text-gray-600">Please wait while we fetch seller information.</p>
+          </div>
+        ) : sellers.length === 0 ? (
             <div className="text-center py-12">
               <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No sellers yet</h3>

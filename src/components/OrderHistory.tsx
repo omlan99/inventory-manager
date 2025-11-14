@@ -1,9 +1,9 @@
 import React from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { History, Calendar, Package, DollarSign, Truck } from 'lucide-react';
+import { History, Calendar, Package, DollarSign, Truck, Loader2 } from 'lucide-react';
 
 export default function OrderHistory() {
-  const { purchaseOrders } = useInventory();
+  const { purchaseOrders, loading, error } = useInventory();
 
   // Only show delivered orders
   const deliveredOrders = purchaseOrders.filter(order => order.status === 'delivered');
@@ -38,8 +38,20 @@ export default function OrderHistory() {
           <p className="mt-2 text-gray-600">History of all delivered purchase orders</p>
         </div>
 
+        {error && (
+          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
         <div className="p-8">
-          {sortedOrders.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-16 w-16 animate-spin text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading order history...</h3>
+              <p className="text-gray-600">Please wait while we fetch your delivered orders.</p>
+            </div>
+          ) : sortedOrders.length === 0 ? (
             <div className="text-center py-12">
               <History className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No delivered orders yet</h3>
@@ -85,7 +97,7 @@ export default function OrderHistory() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {sortedOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={order.id || order._id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatDateTime(order.createdAt)}
                         </td>

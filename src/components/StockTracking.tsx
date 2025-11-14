@@ -1,9 +1,9 @@
 import React from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { BarChart3, Package, TrendingUp, TrendingDown, DollarSign, Truck } from 'lucide-react';
+import { BarChart3, Package, TrendingUp, TrendingDown, DollarSign, Truck, Loader2 } from 'lucide-react';
 
 export default function StockTracking() {
-  const { products, orders, salesRecords } = useInventory();
+  const { products, purchaseOrders, salesRecords, loading, error } = useInventory();
 
   const getProductAnalysis = () => {
     return products.map(product => {
@@ -16,7 +16,7 @@ export default function StockTracking() {
       const profit = (product.sellingPrice - product.buyingPrice) * product.soldQuantity;
 
       return {
-        productId: product.id,
+        productId: product.id || product._id,
         productName: product.name,
         initialStock: product.initialStock,
         deliveredQuantity: product.deliveredQuantity,
@@ -53,6 +53,12 @@ export default function StockTracking() {
           </div>
           <p className="mt-2 text-gray-600">Complete inventory flow from purchase orders to sales</p>
         </div>
+
+        {error && (
+          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="p-8 border-b border-gray-200">
@@ -115,7 +121,13 @@ export default function StockTracking() {
 
         {/* Product Details Table */}
         <div className="p-8">
-          {productAnalysis.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-16 w-16 animate-spin text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading inventory data...</h3>
+              <p className="text-gray-600">Please wait while we fetch your products and stock information.</p>
+            </div>
+          ) : productAnalysis.length === 0 ? (
             <div className="text-center py-12">
               <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>

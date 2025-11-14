@@ -1,107 +1,93 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { Product, Order, SalesRecord, PurchaseOrder, DueEntry, SellerSummary } from '../types';
+import { Product, PurchaseOrder, SalesRecord, DueEntry, SellerSummary } from '../types';
+import { productApi, purchaseOrderApi, salesApi, dueApi } from '../services/api';
 
 interface InventoryState {
   products: Product[];
-  orders: Order[];
   purchaseOrders: PurchaseOrder[];
   salesRecords: SalesRecord[];
   sellers: string[];
   dueEntries: DueEntry[];
+  loading: boolean;
+  error: string | null;
 }
 
 interface InventoryContextType extends InventoryState {
-  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
-  updateProduct: (id: string, updates: Partial<Product>) => void;
-  addOrder: (order: Omit<Order, 'id' | 'createdAt'>) => void;
-  addPurchaseOrder: (order: Omit<PurchaseOrder, 'id' | 'createdAt'>) => void;
-  updatePurchaseOrderStatus: (id: string, status: 'delivered', deliveryDate?: string) => void;
-  addSalesRecord: (salesRecord: Omit<SalesRecord, 'id' | 'createdAt'>) => void;
+  // Product methods
+  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  
+  // Purchase Order methods
+  addPurchaseOrder: (order: Omit<PurchaseOrder, 'id' | 'createdAt'>) => Promise<void>;
+  updatePurchaseOrderStatus: (id: string, status: 'delivered', deliveryDate?: string) => Promise<void>;
+  
+  // Sales methods
+  addSalesRecord: (salesRecord: Omit<SalesRecord, 'id' | 'createdAt'>) => Promise<void>;
   addSeller: (sellerName: string) => void;
+  getSellerSummary: (sellerName: string) => Promise<SellerSummary | null>;
+  updateSalesRecord: (id: string, updates: Partial<SalesRecord>) => Promise<void>;
+  
+  // Due methods
+  addDueEntry: (dueEntry: Omit<DueEntry, 'id' | 'createdAt'>) => Promise<void>;
+  markDueAsPaid: (dueId: string) => Promise<void>;
+  getSellerDues: (sellerName: string) => Promise<DueEntry[]>;
+  getSellerTotalDue: (sellerName: string) => Promise<number>;
+  
+  // Utility methods
   getProduct: (id: string) => Product | undefined;
-  getSellerSummary: (sellerName: string) => SellerSummary | null;
-  updateSalesRecord: (id: string, updates: Partial<SalesRecord>) => void;
   getRemainingQuantity: (productId: string) => number;
-  addDueEntry: (dueEntry: Omit<DueEntry, 'id' | 'createdAt'>) => void;
-  markDueAsPaid: (dueId: string) => void;
-  getSellerDues: (sellerName: string) => DueEntry[];
-  getSellerTotalDue: (sellerName: string) => number;
+  
+  // Data loading methods
+  loadProducts: () => Promise<void>;
+  loadPurchaseOrders: () => Promise<void>;
+  loadSalesRecords: () => Promise<void>;
+  loadSellers: () => Promise<void>;
+  loadDueEntries: () => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 type Action = 
-  | { type: 'SET_STATE'; payload: InventoryState }
-  | { type: 'ADD_PRODUCT'; payload: Product }
-  | { type: 'UPDATE_PRODUCT'; payload: { id: string; updates: Partial<Product> } }
-  | { type: 'ADD_ORDER'; payload: Order }
-  | { type: 'ADD_PURCHASE_ORDER'; payload: PurchaseOrder }
-  | { type: 'UPDATE_PURCHASE_ORDER'; payload: { id: string; updates: Partial<PurchaseOrder> } }
-  | { type: 'ADD_SALES_RECORD'; payload: SalesRecord }
-  | { type: 'ADD_SELLER'; payload: string }
-  | { type: 'UPDATE_SALES_RECORD'; payload: { id: string; updates: Partial<SalesRecord> } }
-  | { type: 'ADD_DUE_ENTRY'; payload: DueEntry }
-  | { type: 'MARK_DUE_AS_PAID'; payload: string };
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_PRODUCTS'; payload: Product[] }
+  | { type: 'SET_PURCHASE_ORDERS'; payload: PurchaseOrder[] }
+  | { type: 'SET_SALES_RECORDS'; payload: SalesRecord[] }
+  | { type: 'SET_SELLERS'; payload: string[] }
+  | { type: 'SET_DUE_ENTRIES'; payload: DueEntry[] }
+  | { type: 'ADD_SELLER'; payload: string };
 
 const initialState: InventoryState = {
   products: [],
-  orders: [],
   purchaseOrders: [],
   salesRecords: [],
   sellers: [],
-  dueEntries: []
+  dueEntries: [],
+  loading: false,
+  error: null,
 };
 
 function inventoryReducer(state: InventoryState, action: Action): InventoryState {
   switch (action.type) {
-    case 'SET_STATE':
-      return action.payload;
-    case 'ADD_PRODUCT':
-      return { ...state, products: [...state.products, action.payload] };
-    case 'UPDATE_PRODUCT':
-      return {
-        ...state,
-        products: state.products.map(product => 
-          product.id === action.payload.id 
-            ? { ...product, ...action.payload.updates }
-            : product
-        )
-      };
-    case 'ADD_ORDER':
-      return { ...state, orders: [...state.orders, action.payload] };
-    case 'ADD_PURCHASE_ORDER':
-      return { ...state, purchaseOrders: [...state.purchaseOrders, action.payload] };
-    case 'UPDATE_PURCHASE_ORDER':
-      return {
-        ...state,
-        purchaseOrders: state.purchaseOrders.map(order => 
-          order.id === action.payload.id 
-            ? { ...order, ...action.payload.updates }
-            : order
-        )
-      };
-    case 'ADD_SALES_RECORD':
-      return { ...state, salesRecords: [...state.salesRecords, action.payload] };
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload, loading: false };
+    case 'SET_PRODUCTS':
+      return { ...state, products: action.payload };
+    case 'SET_PURCHASE_ORDERS':
+      return { ...state, purchaseOrders: action.payload };
+    case 'SET_SALES_RECORDS':
+      return { ...state, salesRecords: action.payload };
+    case 'SET_SELLERS':
+      return { ...state, sellers: action.payload };
+    case 'SET_DUE_ENTRIES':
+      return { ...state, dueEntries: action.payload };
     case 'ADD_SELLER':
       return { 
         ...state, 
         sellers: state.sellers.includes(action.payload) 
           ? state.sellers 
           : [...state.sellers, action.payload] 
-      };
-    case 'UPDATE_SALES_RECORD':
-      return {
-        ...state,
-        salesRecords: state.salesRecords.map(record => 
-          record.id === action.payload.id 
-            ? { ...record, ...action.payload.updates }
-            : record
-        )
-      };
-    case 'ADD_DUE_ENTRY':
-      return { ...state, dueEntries: [...state.dueEntries, action.payload] };
-    case 'MARK_DUE_AS_PAID':
-      return {
-        ...state,
-        dueEntries: state.dueEntries.filter(entry => entry.id !== action.payload)
       };
     default:
       return state;
@@ -113,96 +99,107 @@ const InventoryContext = createContext<InventoryContextType | undefined>(undefin
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(inventoryReducer, initialState);
 
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedState = localStorage.getItem('inventoryData');
-    if (savedState) {
-      dispatch({ type: 'SET_STATE', payload: JSON.parse(savedState) });
+  // Error handling wrapper
+  const handleApiCall = async (apiCall: () => Promise<any>, errorMessage: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
+      return await apiCall();
+    } catch (error) {
+      console.error(errorMessage, error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : errorMessage });
+      throw error;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, []);
-
-  // Save to localStorage whenever state changes
-  useEffect(() => {
-    localStorage.setItem('inventoryData', JSON.stringify(state));
-  }, [state]);
-
-  const addProduct = (productData: Omit<Product, 'id' | 'createdAt'>) => {
-    const newProduct: Product = {
-      ...productData,
-      deliveredQuantity: productData.initialStock,
-      soldQuantity: 0,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    };
-    dispatch({ type: 'ADD_PRODUCT', payload: newProduct });
   };
 
-  const updateProduct = (id: string, updates: Partial<Product>) => {
-    dispatch({ type: 'UPDATE_PRODUCT', payload: { id, updates } });
+  // Data loading methods
+  const loadProducts = async () => {
+    await handleApiCall(async () => {
+      const products = await productApi.getAll();
+      dispatch({ type: 'SET_PRODUCTS', payload: products });
+    }, 'Failed to load products');
   };
 
-  const addOrder = (orderData: Omit<Order, 'id' | 'createdAt'>) => {
-    const newOrder: Order = {
-      ...orderData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    };
-    
-    dispatch({ type: 'ADD_ORDER', payload: newOrder });
+  const loadPurchaseOrders = async () => {
+    await handleApiCall(async () => {
+      const orders = await purchaseOrderApi.getAll();
+      dispatch({ type: 'SET_PURCHASE_ORDERS', payload: orders });
+    }, 'Failed to load purchase orders');
   };
 
-  const addPurchaseOrder = (orderData: Omit<PurchaseOrder, 'id' | 'createdAt'>) => {
-    const newPurchaseOrder: PurchaseOrder = {
-      ...orderData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    };
-    dispatch({ type: 'ADD_PURCHASE_ORDER', payload: newPurchaseOrder });
+  const loadSalesRecords = async () => {
+    await handleApiCall(async () => {
+      const records = await salesApi.getAll();
+      dispatch({ type: 'SET_SALES_RECORDS', payload: records });
+    }, 'Failed to load sales records');
   };
 
-  const updatePurchaseOrderStatus = (id: string, status: 'delivered', deliveryDate?: string) => {
-    const purchaseOrder = state.purchaseOrders.find(order => order.id === id);
-    if (purchaseOrder && status === 'delivered') {
-      // Add delivered quantity to product stock
-      const product = state.products.find(p => p.id === purchaseOrder.productId);
-      if (product) {
-        updateProduct(purchaseOrder.productId, {
-          deliveredQuantity: product.deliveredQuantity + purchaseOrder.quantity
-        });
-      }
-      
-      // Update purchase order status
-      dispatch({ 
-        type: 'UPDATE_PURCHASE_ORDER', 
-        payload: { 
-          id, 
-          updates: { 
-            status, 
-            deliveryDate: deliveryDate || new Date().toISOString().split('T')[0] 
-          } 
-        } 
+  const loadSellers = async () => {
+    await handleApiCall(async () => {
+      const sellers = await salesApi.getSellers();
+      dispatch({ type: 'SET_SELLERS', payload: sellers });
+    }, 'Failed to load sellers');
+  };
+
+  const loadDueEntries = async () => {
+    await handleApiCall(async () => {
+      const dues = await dueApi.getAll();
+      dispatch({ type: 'SET_DUE_ENTRIES', payload: dues });
+    }, 'Failed to load due entries');
+  };
+
+  const refreshData = async () => {
+    await Promise.all([
+      loadProducts(),
+      loadPurchaseOrders(),
+      loadSalesRecords(),
+      loadSellers(),
+      loadDueEntries(),
+    ]);
+  };
+
+  // Product methods
+  const addProduct = async (productData: Omit<Product, 'id' | 'createdAt'>) => {
+    await handleApiCall(async () => {
+      await productApi.create(productData);
+      await loadProducts();
+    }, 'Failed to add product');
+  };
+
+  const updateProduct = async (id: string, updates: Partial<Product>) => {
+    await handleApiCall(async () => {
+      await productApi.update(id, updates);
+      await loadProducts();
+    }, 'Failed to update product');
+  };
+
+  // Purchase Order methods
+  const addPurchaseOrder = async (orderData: Omit<PurchaseOrder, 'id' | 'createdAt'>) => {
+    await handleApiCall(async () => {
+      await purchaseOrderApi.create({
+        productId: orderData.productId,
+        quantity: orderData.quantity,
+        buyingPrice: orderData.buyingPrice,
       });
-    }
+      await loadPurchaseOrders();
+    }, 'Failed to add purchase order');
   };
 
-  const addSalesRecord = (salesData: Omit<SalesRecord, 'id' | 'createdAt'>) => {
-    const newSalesRecord: SalesRecord = {
-      ...salesData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    };
-    
-    // Update product sold quantity for each item
-    salesData.items.forEach(item => {
-      const product = state.products.find(p => p.id === item.productId);
-      if (product) {
-        updateProduct(item.productId, {
-          soldQuantity: product.soldQuantity + item.quantity
-        });
-      }
-    });
-    
-    dispatch({ type: 'ADD_SALES_RECORD', payload: newSalesRecord });
+  const updatePurchaseOrderStatus = async (id: string, status: 'delivered', deliveryDate?: string) => {
+    await handleApiCall(async () => {
+      await purchaseOrderApi.markDelivered(id);
+      await Promise.all([loadPurchaseOrders(), loadProducts()]);
+    }, 'Failed to update purchase order status');
+  };
+
+  // Sales methods
+  const addSalesRecord = async (salesData: Omit<SalesRecord, 'id' | 'createdAt'>) => {
+    await handleApiCall(async () => {
+      await salesApi.create(salesData);
+      await Promise.all([loadSalesRecords(), loadProducts(), loadSellers()]);
+    }, 'Failed to add sales record');
   };
 
   const addSeller = (sellerName: string) => {
@@ -211,103 +208,96 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getSellerSummary = async (sellerName: string): Promise<SellerSummary | null> => {
+    try {
+      return await salesApi.getSellerSummary(sellerName);
+    } catch (error) {
+      console.error('Failed to get seller summary:', error);
+      return null;
+    }
+  };
+
+  const updateSalesRecord = async (id: string, updates: Partial<SalesRecord>) => {
+    await handleApiCall(async () => {
+      // Note: This would need to be implemented in the backend
+      // For now, we'll just refresh the data
+      await loadSalesRecords();
+    }, 'Failed to update sales record');
+  };
+
+  // Due methods
+  const addDueEntry = async (dueData: Omit<DueEntry, 'id' | 'createdAt'>) => {
+    await handleApiCall(async () => {
+      await dueApi.create(dueData);
+      await loadDueEntries();
+    }, 'Failed to add due entry');
+  };
+
+  const markDueAsPaid = async (dueId: string) => {
+    await handleApiCall(async () => {
+      await dueApi.markPaid(dueId);
+      await loadDueEntries();
+    }, 'Failed to mark due as paid');
+  };
+
+  const getSellerDues = async (sellerName: string): Promise<DueEntry[]> => {
+    try {
+      const result = await dueApi.getBySeller(sellerName);
+      return result.dueEntries || [];
+    } catch (error) {
+      console.error('Failed to get seller dues:', error);
+      return [];
+    }
+  };
+
+  const getSellerTotalDue = async (sellerName: string): Promise<number> => {
+    try {
+      const result = await dueApi.getBySeller(sellerName);
+      return result.totalDue || 0;
+    } catch (error) {
+      console.error('Failed to get seller total due:', error);
+      return 0;
+    }
+  };
+
+  // Utility methods
   const getProduct = (id: string) => {
-    return state.products.find(product => product.id === id);
-  };
-
-  const getSellerSummary = (sellerName: string): SellerSummary | null => {
-    const sellerRecords = state.salesRecords.filter(record => record.sellerName === sellerName);
-    
-    if (sellerRecords.length === 0) return null;
-
-    const totalSales = sellerRecords.reduce((sum, record) => sum + record.totalSalesAmount, 0);
-    const totalQuantitySold = sellerRecords.reduce((sum, record) => 
-      sum + record.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0
-    );
-
-    // Group products sold by this seller
-    const productMap = new Map();
-    sellerRecords.forEach(record => {
-      record.items.forEach(item => {
-        if (productMap.has(item.productId)) {
-          const existing = productMap.get(item.productId);
-          existing.totalQuantity += item.quantity;
-          existing.totalValue += item.totalPrice;
-        } else {
-          productMap.set(item.productId, {
-            productId: item.productId,
-            productName: item.productName,
-            totalQuantity: item.quantity,
-            totalValue: item.totalPrice
-          });
-        }
-      });
-    });
-
-    const productsSold = Array.from(productMap.values()).map(product => ({
-      ...product,
-      averagePrice: product.totalValue / product.totalQuantity
-    }));
-
-    return {
-      sellerName,
-      totalSales,
-      totalQuantitySold,
-      salesRecords: sellerRecords,
-      productsSold
-    };
-  };
-
-  const updateSalesRecord = (id: string, updates: Partial<SalesRecord>) => {
-    dispatch({ type: 'UPDATE_SALES_RECORD', payload: { id, updates } });
+    return state.products.find(product => product.id === id || product._id === id);
   };
 
   const getRemainingQuantity = (productId: string): number => {
-    const product = state.products.find(p => p.id === productId);
+    const product = getProduct(productId);
     return product ? product.deliveredQuantity - product.soldQuantity : 0;
   };
 
-  const addDueEntry = (dueData: Omit<DueEntry, 'id' | 'createdAt'>) => {
-    const newDueEntry: DueEntry = {
-      ...dueData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    };
-    dispatch({ type: 'ADD_DUE_ENTRY', payload: newDueEntry });
-  };
-
-  const markDueAsPaid = (dueId: string) => {
-    dispatch({ type: 'MARK_DUE_AS_PAID', payload: dueId });
-  };
-
-  const getSellerDues = (sellerName: string): DueEntry[] => {
-    return state.dueEntries.filter(entry => entry.sellerName === sellerName);
-  };
-
-  const getSellerTotalDue = (sellerName: string): number => {
-    return state.dueEntries
-      .filter(entry => entry.sellerName === sellerName)
-      .reduce((total, entry) => total + entry.dueAmount, 0);
-  };
+  // Load initial data
+  useEffect(() => {
+    refreshData().catch(console.error);
+  }, []);
 
   return (
     <InventoryContext.Provider value={{
       ...state,
       addProduct,
       updateProduct,
-      addOrder,
       addPurchaseOrder,
       updatePurchaseOrderStatus,
       addSalesRecord,
       addSeller,
-      getProduct,
       getSellerSummary,
       updateSalesRecord,
-      getRemainingQuantity,
       addDueEntry,
       markDueAsPaid,
       getSellerDues,
-      getSellerTotalDue
+      getSellerTotalDue,
+      getProduct,
+      getRemainingQuantity,
+      loadProducts,
+      loadPurchaseOrders,
+      loadSalesRecords,
+      loadSellers,
+      loadDueEntries,
+      refreshData,
     }}>
       {children}
     </InventoryContext.Provider>

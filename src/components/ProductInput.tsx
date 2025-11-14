@@ -1,38 +1,46 @@
 import React, { useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Package, Loader2 } from 'lucide-react';
 
 export default function ProductInput() {
-  const { addProduct } = useInventory();
+  const { addProduct, loading, error } = useInventory();
   const [formData, setFormData] = useState({
     name: '',
     initialStock: '',
     buyingPrice: '',
     sellingPrice: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.initialStock || !formData.buyingPrice || !formData.sellingPrice) {
       alert('Please fill in all fields');
       return;
     }
 
-    addProduct({
-      name: formData.name,
-      initialStock: parseInt(formData.initialStock),
-      buyingPrice: parseFloat(formData.buyingPrice),
-      sellingPrice: parseFloat(formData.sellingPrice)
-    });
+    try {
+      setIsSubmitting(true);
+      await addProduct({
+        name: formData.name,
+        initialStock: parseInt(formData.initialStock),
+        buyingPrice: parseFloat(formData.buyingPrice),
+        sellingPrice: parseFloat(formData.sellingPrice)
+      });
 
-    setFormData({
-      name: '',
-      initialStock: '',
-      buyingPrice: '',
-      sellingPrice: ''
-    });
+      setFormData({
+        name: '',
+        initialStock: '',
+        buyingPrice: '',
+        sellingPrice: ''
+      });
 
-    alert('Product added successfully!');
+      alert('Product added successfully!');
+    } catch (error) {
+      alert('Failed to add product. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,6 +58,12 @@ export default function ProductInput() {
           </div>
           <p className="mt-2 text-gray-600">Enter product details to add to inventory</p>
         </div>
+
+        {error && (
+          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div>
@@ -121,10 +135,20 @@ export default function ProductInput() {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+            disabled={isSubmitting || loading}
+            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
           >
-            <Plus className="h-5 w-5" />
-            <span>Add Product</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Adding Product...</span>
+              </>
+            ) : (
+              <>
+                <Plus className="h-5 w-5" />
+                <span>Add Product</span>
+              </>
+            )}
           </button>
         </form>
       </div>

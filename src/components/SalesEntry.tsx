@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Receipt, Plus, Trash2, Edit3, Save, X } from 'lucide-react';
+import { Receipt, Plus, Trash2, Edit3, Save, X, Loader2 } from 'lucide-react';
 import { SalesItem } from '../types';
 
 export default function SalesEntry() {
-  const { products, sellers, addSalesRecord, addSeller } = useInventory();
+  const { products, sellers, addSalesRecord, addSeller, loading, error, getRemainingQuantity } = useInventory();
   const [salesDate, setSalesDate] = useState(new Date().toISOString().split('T')[0]);
   const [sellerName, setSellerName] = useState('');
   const [showSellerSuggestions, setShowSellerSuggestions] = useState(false);
@@ -16,6 +16,7 @@ export default function SalesEntry() {
   const [salesItems, setSalesItems] = useState<SalesItem[]>([]);
   const [totalDueAmount, setTotalDueAmount] = useState('');
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sellerInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +27,7 @@ export default function SalesEntry() {
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(productSearch.toLowerCase()) &&
-    (product.deliveredQuantity - product.soldQuantity) > 0
+    getRemainingQuantity(product.id || product._id!) > 0
   );
 
   const handleSellerSelect = (seller: string) => {
@@ -51,15 +52,15 @@ export default function SalesEntry() {
     const price = parseFloat(sellingPrice);
     const total = qty * price;
 
-    const availableStock = selectedProduct.deliveredQuantity - selectedProduct.soldQuantity;
+    const availableStock = getRemainingQuantity(selectedProduct.id || selectedProduct._id!);
     if (qty > availableStock) {
       alert(`Not enough stock. Available: ${availableStock}`);
       return;
     }
 
     const newItem: SalesItem = {
-      id: Date.now().toString(),
-      productId: selectedProduct.id,
+      id: `temp-${Date.now()}`,
+      productId: selectedProduct.id || selectedProduct._id!,
       productName: selectedProduct.name,
       quantity: qty,
       sellingPrice: price,
@@ -104,7 +105,7 @@ export default function SalesEntry() {
   const dueAmount = parseFloat(totalDueAmount) || 0;
   const cashSaleAmount = totalSalesAmount - dueAmount;
 
-  const handleSubmitSales = () => {
+  const handleSubmitSales = async () => {
     if (!sellerName.trim()) {
       alert('Please enter seller name');
       return;
@@ -115,26 +116,34 @@ export default function SalesEntry() {
       return;
     }
 
-    // Add seller to the list if new
-    addSeller(sellerName);
+    try {
+      setIsSubmitting(true);
+      
+      // Add seller to the list if new
+      addSeller(sellerName);
 
-    // Create sales record
-    addSalesRecord({
-      date: salesDate,
-      sellerName: sellerName.trim(),
-      items: salesItems,
-      totalSalesAmount,
-      totalDueAmount: dueAmount,
-      cashSaleAmount
-    });
+      // Create sales record
+      await addSalesRecord({
+        date: salesDate,
+        sellerName: sellerName.trim(),
+        items: salesItems,
+        totalSalesAmount,
+        totalDueAmount: dueAmount,
+        cashSaleAmount
+      });
 
-    // Reset form
-    setSalesDate(new Date().toISOString().split('T')[0]);
-    setSellerName('');
-    setSalesItems([]);
-    setTotalDueAmount('');
-    
-    alert('Sales record created successfully!');
+      // Reset form
+      setSalesDate(new Date().toISOString().split('T')[0]);
+      setSellerName('');
+      setSalesItems([]);
+      setTotalDueAmount('');
+      
+      alert('Sales record created successfully!');
+    } catch (error) {
+      alert('Failed to create sales record. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle click outside to close suggestions
@@ -162,6 +171,12 @@ export default function SalesEntry() {
           </div>
           <p className="mt-2 text-gray-600">Create comprehensive sales records with multiple products</p>
         </div>
+
+        {error && (
+          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         <div className="p-8">
           {/* Sales Header Form */}
@@ -234,12 +249,12 @@ export default function SalesEntry() {
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                     {filteredProducts.map((product) => (
                       <button
-                        key={product.id}
+                        key={product.id || product._id}
                         onClick={() => handleProductSelect(product)}
                         className="w-full px-4 py-2 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
                       >
                         <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-gray-500">Stock: {product.deliveredQuantity - product.soldQuantity} | Price: ${product.sellingPrice}</div>
+                        <div className="text-sm text-gray-500">Stock: {getRemainingQuantity(product.id || product._id!)} | Price: ${product.sellingPrice}</div>
                       </button>
                     ))}
                   </div>
@@ -253,7 +268,7 @@ export default function SalesEntry() {
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   min="1"
-                  max={selectedProduct ? selectedProduct.deliveredQuantity - selectedProduct.soldQuantity : 999999}
+                  max={selectedProduct ? getRemainingQuantity(selectedProduct.id || selectedProduct._id!) : 999999}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Qty"
                 />
@@ -429,10 +444,20 @@ export default function SalesEntry() {
               <div className="mt-6">
                 <button
                   onClick={handleSubmitSales}
-                  className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+                  disabled={isSubmitting || loading}
+                  className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
                 >
-                  <Receipt className="h-5 w-5" />
-                  <span>Complete Sales Record</span>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Creating Sales Record...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Receipt className="h-5 w-5" />
+                      <span>Complete Sales Record</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

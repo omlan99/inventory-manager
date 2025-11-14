@@ -1,49 +1,15 @@
 import React, { useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { User, Calendar, Package, DollarSign, Edit3, Save, X, TrendingUp, Loader2 } from 'lucide-react';
-
-interface SellerDetailsProps {
+import { User, Calendar, Package, DollarSign, CreditCard as Edit3, Save, X, TrendingUp, Loader2 } from 'lucide-react'ace SellerDetailsProps {
   sellerName: string;
 }
 
 export default function SellerDetails({ sellerName }: SellerDetailsProps) {
-  const { getSellerSummary, updateSalesRecord, loading, error } = useInventory();
+  const { getSellerSummary, updateSalesRecord } = useInventory();
   const [editingRecord, setEditingRecord] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [sellerSummary, setSellerSummary] = useState<any>(null);
-  const [loadingSummary, setLoadingSummary] = useState(true);
 
-  // Load seller summary
-  React.useEffect(() => {
-    const loadSellerSummary = async () => {
-      setLoadingSummary(true);
-      try {
-        const summary = await getSellerSummary(sellerName);
-        setSellerSummary(summary);
-      } catch (error) {
-        console.error('Failed to load seller summary:', error);
-        setSellerSummary(null);
-      } finally {
-        setLoadingSummary(false);
-      }
-    };
-
-    loadSellerSummary();
-  }, [sellerName, getSellerSummary]);
-
-  if (loadingSummary) {
-    return (
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-          <div className="text-center">
-            <Loader2 className="h-16 w-16 animate-spin text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Loading seller details...</h3>
-            <p className="text-gray-600">Please wait while we fetch {sellerName}'s information.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const sellerSummary = getSellerSummary(sellerName);
 
   if (!sellerSummary) {
     return (
@@ -143,12 +109,6 @@ export default function SellerDetails({ sellerName }: SellerDetailsProps) {
             </div>
           </div>
         </div>
-
-        {error && (
-          <div className="mx-8 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-        )}
 
         {/* Monthly Summary Cards */}
         <div className="p-8 border-b border-gray-200">

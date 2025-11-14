@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { Receipt, Plus, Trash2, Edit3, Save, X, Loader2 } from 'lucide-react';
+import { Receipt, Plus, Trash2, CreditCard as Edit3, Save, X, Loader2 } from 'lucide-react';
 import { SalesItem } from '../types';
 
 export default function SalesEntry() {

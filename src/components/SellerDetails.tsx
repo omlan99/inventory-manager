@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
-import { User, Calendar, Package, DollarSign, CreditCard as Edit3, Save, X, TrendingUp, Loader2 } from 'lucide-react'ace SellerDetailsProps {
+import { User, Calendar, Package, DollarSign, CreditCard as Edit3, Save, X, TrendingUp, Loader2 } from 'lucide-react';
+
+interface SellerDetailsProps {
   sellerName: string;
 }
 
